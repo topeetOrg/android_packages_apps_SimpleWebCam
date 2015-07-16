@@ -9,22 +9,23 @@ import android.graphics.Canvas;
 import android.graphics.Rect;
 
 class CameraPreview extends SurfaceView implements SurfaceHolder.Callback, Runnable {
-
+	static final String tag = "CameraPreview";
 	private static final boolean DEBUG = true;
 	protected Context context;
 	private SurfaceHolder holder;
-    Thread mainLoop = null;
+        Thread mainLoop = null;
 	private Bitmap bmp=null;
 
 	private boolean cameraExists=false;
 	private boolean shouldStop=false;
 	
-	// /dev/videox (x=cameraId+cameraBase) is used.
+	/// /dev/videox (x=cameraId+cameraBase) is used.
 	// In some omap devices, system uses /dev/video[0-3],
 	// so users must use /dev/video[4-].
 	// In such a case, try cameraId=0 and cameraBase=4
 	private int cameraId=0;
 	private int cameraBase=0;
+	//
 	
 	// This definition also exists in ImageProc.h.
 	// Webcam must support the resolution 640x480 with YUYV format. 
@@ -59,9 +60,12 @@ class CameraPreview extends SurfaceView implements SurfaceHolder.Callback, Runna
 		holder.setType(SurfaceHolder.SURFACE_TYPE_NORMAL);	
 	}
 	
+	int count = 0;
+	
     @Override
     public void run() {
         while (true && cameraExists) {
+        	Log.i(tag, "loop");
         	//obtaining display area to draw a large image
         	if(winWidth==0){
         		winWidth=this.getWidth();
@@ -96,9 +100,11 @@ class CameraPreview extends SurfaceView implements SurfaceHolder.Callback, Runna
 
             if(shouldStop){
             	shouldStop = false;  
+            	Log.i(tag, "break");
             	break;
             }	        
         }
+        Log.i(tag, "线程退出12");
     }
 
 	@Override

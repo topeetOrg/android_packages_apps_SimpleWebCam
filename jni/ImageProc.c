@@ -1,11 +1,11 @@
 #include "ImageProc.h"
+//01-24 07:43:06.439: E/TEST(3756): VIDIOC_DQBUF error 22, Invalid argument
 
 int errnoexit(const char *s)
 {
-	LOGE("%s error %d, %s", s, errno, strerror (errno));
+        printf("%s error %d, %s", s, errno, strerror (errno));
 	return ERROR_LOCAL;
 }
-
 
 int xioctl(int fd, int request, void *arg)
 {
@@ -16,6 +16,8 @@ int xioctl(int fd, int request, void *arg)
 
 	return r;
 }
+
+//检查video设备名称
 int checkCamerabase(void){
 	struct stat st;
 	int i;
@@ -37,32 +39,32 @@ int checkCamerabase(void){
 		return 0;
 	}
 }
-
+//打开video设备
 int opendevice(int i)
 {
 	struct stat st;
 
 	sprintf(dev_name,"/dev/video%d",i);
-
+	//stat() 获得文件属性，并判断是否为字符设备文件
 	if (-1 == stat (dev_name, &st)) {
-		LOGE("Cannot identify '%s': %d, %s", dev_name, errno, strerror (errno));
+                printf("Cannot identify '%s': %d, %s", dev_name, errno, strerror (errno));
 		return ERROR_LOCAL;
 	}
 
 	if (!S_ISCHR (st.st_mode)) {
-		LOGE("%s is no device", dev_name);
+                printf("%s is no device", dev_name);
 		return ERROR_LOCAL;
 	}
 
-	fd = open (dev_name, O_RDWR | O_NONBLOCK, 0);
+	fd = open (dev_name, O_RDWR);
 
 	if (-1 == fd) {
-		LOGE("Cannot open '%s': %d, %s", dev_name, errno, strerror (errno));
+                printf("Cannot open '%s': %d, %s", dev_name, errno, strerror (errno));
 		return ERROR_LOCAL;
 	}
 	return SUCCESS_LOCAL;
 }
-
+//初始化设备
 int initdevice(void) 
 {
 	struct v4l2_capability cap;
@@ -70,30 +72,33 @@ int initdevice(void)
 	struct v4l2_crop crop;
 	struct v4l2_format fmt;
 	unsigned int min;
-
+	//VIDIOC_QUERYCAP 命令 来获得当前设备的各个属性
 	if (-1 == xioctl (fd, VIDIOC_QUERYCAP, &cap)) {
 		if (EINVAL == errno) {
-			LOGE("%s is no V4L2 device", dev_name);
+                        printf("%s is no V4L2 device", dev_name);
 			return ERROR_LOCAL;
 		} else {
 			return errnoexit ("VIDIOC_QUERYCAP");
 		}
 	}
-
+	//V4L2_CAP_VIDEO_CAPTURE 0x00000001
+	// 这个设备支持 video capture 的接口，即这个设备具备 video capture 的功能
 	if (!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
-		LOGE("%s is no video capture device", dev_name);
+                printf("%s is no video capture device", dev_name);
 		return ERROR_LOCAL;
 	}
-
+	//V4L2_CAP_STREAMING 0x04000000
+	// 这个设备是否支持 streaming I/O 操作函数
 	if (!(cap.capabilities & V4L2_CAP_STREAMING)) {
-		LOGE("%s does not support streaming i/o", dev_name);
+                printf("%s does not support streaming i/o", dev_name);
 		return ERROR_LOCAL;
 	}
-	
+	//获得设备对 Image Cropping 和 Scaling 的支持
 	CLEAR (cropcap);
 
 	cropcap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
+        /*
 	if (0 == xioctl (fd, VIDIOC_CROPCAP, &cropcap)) {
 		crop.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		crop.c = cropcap.defrect; 
@@ -108,7 +113,8 @@ int initdevice(void)
 		}
 	} else {
 	}
-
+        */
+	//设置图形格式
 	CLEAR (fmt);
 
 	fmt.type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -118,11 +124,12 @@ int initdevice(void)
 
 	fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
 	fmt.fmt.pix.field       = V4L2_FIELD_INTERLACED;
-
+	//检查流权限
 	if (-1 == xioctl (fd, VIDIOC_S_FMT, &fmt))
 		return errnoexit ("VIDIOC_S_FMT");
 
 	min = fmt.fmt.pix.width * 2;
+	//每行像素所占的 byte 数
 	if (fmt.fmt.pix.bytesperline < min)
 		fmt.fmt.pix.bytesperline = min;
 	min = fmt.fmt.pix.bytesperline * fmt.fmt.pix.height;
@@ -132,7 +139,7 @@ int initdevice(void)
 	return initmmap ();
 
 }
-
+//I/O模式选择
 int initmmap(void)
 {
 	struct v4l2_requestbuffers req;
@@ -145,7 +152,7 @@ int initmmap(void)
 
 	if (-1 == xioctl (fd, VIDIOC_REQBUFS, &req)) {
 		if (EINVAL == errno) {
-			LOGE("%s does not support memory mapping", dev_name);
+                        printf("%s does not support memory mapping", dev_name);
 			return ERROR_LOCAL;
 		} else {
 			return errnoexit ("VIDIOC_REQBUFS");
@@ -153,14 +160,14 @@ int initmmap(void)
 	}
 
 	if (req.count < 2) {
-		LOGE("Insufficient buffer memory on %s", dev_name);
+                printf("Insufficient buffer memory on %s", dev_name);
 		return ERROR_LOCAL;
  	}
 
 	buffers = calloc (req.count, sizeof (*buffers));
 
 	if (!buffers) {
-		LOGE("Out of memory");
+                printf("Out of memory");
 		return ERROR_LOCAL;
 	}
 
@@ -240,7 +247,7 @@ int readframeonce(void)
 		}
 
 		if (0 == r) {
-			LOGE("select timeout");
+                        printf("select timeout");
 			return ERROR_LOCAL;
 
 		}
@@ -255,13 +262,11 @@ int readframeonce(void)
 }
 
 
-void processimage (const void *p)
-{
+void processimage (const void *p){
 		yuyv422toABGRY((unsigned char *)p);
 }
 
-int readframe(void)
-{
+int readframe(void){
 
 	struct v4l2_buffer buf;
 	unsigned int i;
@@ -270,7 +275,8 @@ int readframe(void)
 
 	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	buf.memory = V4L2_MEMORY_MMAP;
-
+	//buf.memory = V4L2_MEMORY_USERPTR;
+        //printf("fd=%d,request=%d,buf=%d",fd,VIDIOC_DQBUF,&buf);
 	if (-1 == xioctl (fd, VIDIOC_DQBUF, &buf)) {
 		switch (errno) {
 			case EAGAIN:
@@ -316,7 +322,7 @@ int uninitdevice(void)
 
 	return SUCCESS_LOCAL;
 }
-
+//关闭设备
 int closedevice(void)
 {
 	if (-1 == close (fd)){
@@ -327,8 +333,6 @@ int closedevice(void)
 	fd = -1;
 	return SUCCESS_LOCAL;
 }
-
-
 
 void yuyv422toABGRY(unsigned char *src)
 {
@@ -419,7 +423,7 @@ Java_com_camera_simplewebcam_CameraPreview_pixeltobmp( JNIEnv* env,jobject thiz,
 	int height=0;
 
 	if ((ret = AndroidBitmap_getInfo(env, bitmap, &info)) < 0) {
-		LOGE("AndroidBitmap_getInfo() failed ! error=%d", ret);
+                printf("AndroidBitmap_getInfo() failed ! error=%d", ret);
 		return;
 	}
     
@@ -429,12 +433,12 @@ Java_com_camera_simplewebcam_CameraPreview_pixeltobmp( JNIEnv* env,jobject thiz,
 	if(!rgb || !ybuf) return;
 
 	if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888) {
-		LOGE("Bitmap format is not RGBA_8888 !");
+                printf("Bitmap format is not RGBA_8888 !");
 		return;
 	}
 
 	if ((ret = AndroidBitmap_lockPixels(env, bitmap, &pixels)) < 0) {
-		LOGE("AndroidBitmap_lockPixels() failed ! error=%d", ret);
+                printf("AndroidBitmap_lockPixels() failed ! error=%d", ret);
 	}
 
 	colors = (int*)pixels;
@@ -454,11 +458,12 @@ Java_com_camera_simplewebcam_CameraPreview_prepareCamera( JNIEnv* env,jobject th
 
 	int ret;
 
-	if(camerabase<0){
-		camerabase = checkCamerabase();
-	}
+        //if(camerabase<0){
+        //	camerabase = checkCamerabase();
+        //}
 
-	ret = opendevice(camerabase + videoid);
+        //ret = opendevice(camerabase + videoid);
+        ret = opendevice(4);
 
 	if(ret != ERROR_LOCAL){
 		ret = initdevice();
@@ -470,7 +475,7 @@ Java_com_camera_simplewebcam_CameraPreview_prepareCamera( JNIEnv* env,jobject th
 			stopcapturing();
 			uninitdevice ();
 			closedevice ();
-			LOGE("device resetted");	
+                        printf("device resetted");
 		}
 
 	}
